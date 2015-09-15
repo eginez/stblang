@@ -47,11 +47,14 @@
 
 (defmethod match :equals [token seq-tokens]
   (let [chr (first (consume-spaces seq-tokens))]
-    (contains? #{\=} chr)))
+    (if (contains? #{\=} chr)
+      {:type :equals :text "=" :rest (rest (consume-spaces seq-tokens))})))
+
 
 (defmethod match :operator [token seq-tokens]
   (let [chr (first (consume-spaces seq-tokens))]
-    (contains? #{\+ \-} chr)))
+    (if (contains? #{\+ \-} chr)
+      {:type :operator :text (str chr) :rest (rest (consume-spaces seq-tokens))})))
 
 (defmethod match :id [token seq-tokens]
   (loop [string (consume-spaces seq-tokens)
@@ -59,7 +62,7 @@
   (if (is-letter (first string))
     (recur (rest string) (conj vrb (first string)))
     (when (not (empty? vrb))
-      {:type :id :node vrb :string string}))))
+      {:type :id :text (apply str vrb) :rest string}))))
 
 (defmethod match :number [token seq-tokens]
   (loop [string (consume-spaces seq-tokens)
@@ -67,13 +70,21 @@
   (if (is-number (first string))
     (recur (rest string) (conj vrb (first string)))
     (when (not (empty? vrb))
-      {:type :number :node vrb :string string}))))
+      {:type :number :text (apply str vrb) :rest string}))))
 
 
 (defmethod match clojure.lang.PersistentVector [token seq-tokens]
-  (let [r (match (first token) seq-tokens)]
-    (while (not (nil? r))
-      (match (rest token) (:string r)))))
+  (loop [cur-tokens token
+         string seq-tokens
+         ast []]
+    (if (empty? cur-tokens)
+      (if (empty? string)
+        ast)
+      (let [sym (first cur-tokens)
+            node (match sym string) ]
+        (if (nil? node)
+          nil
+          (recur (rest cur-tokens) (:rest node) (conj ast node)))))))
   
 (defmethod match :operand [token seq-tokens]
   (or
